@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>21 — Блэкджек</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1b5e20 0%, #0d3b12 60%, #061f08 100%);
+    color: #fff;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+  #topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.35);
+    font-size: 15px;
+    z-index: 10;
+  }
+  #topbar .chip {
+    background: rgba(255,255,255,0.12);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  #topbar .chip.gold { color: #ffd700; }
+  #table {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px;
+    position: relative;
+  }
+  .hand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-height: 130px;
+  }
+  .hand-label {
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #9ccc9c;
+    font-weight: 600;
+  }
+  .cards {
+    display: flex;
+    justify-content: center;
+    min-height: 110px;
+  }
+  .card {
+    width: 72px;
+    height: 104px;
+    border-radius: 8px;
+    background: #fff;
+    color: #111;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6px 8px;
+    margin-left: -28px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+    font-weight: 700;
+    position: relative;
+    animation: deal 0.25s ease-out;
+  }
+  .card:first-child { margin-left: 0; }
+  .card.red { color: #d32f2f; }
+  .card .rank { font-size: 20px; line-height: 1; }
+  .card .suit { font-size: 22px; align-self: flex-end; }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #1a237e, #1a237e 6px, #283593 6px, #283593 12px);
+    color: transparent;
+  }
+  @keyframes deal {
+    from { transform: translateY(-40px) scale(0.8); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  .score-badge {
+    font-size: 14px;
+    background: rgba(0,0,0,0.4);
+    padding: 4px 14px;
+    border-radius: 12px;
+    color: #ffd700;
+    font-weight: 700;
+  }
+  #message {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    min-height: 28px;
+    transition: opacity 0.3s;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+  #message.win { color: #69f0ae; }
+  #message.lose { color: #ff5252; }
+  #message.push { color: #ffd740; }
+  #controls {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(0,0,0,0.35);
+  }
+  #controls button {
+    flex: 1;
+    padding: 18px 0;
+    font-size: 18px;
+    font-weight: 700;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  #controls button:active { transform: scale(0.96); }
+  #controls button:disabled { opacity: 0.35; cursor: default; }
+  #hitBtn { background: linear-gradient(135deg, #43a047, #2e7d32); color: #fff; }
+  #standBtn { background: linear-gradient(135deg, #ffb300, #ff8f00); color: #000; }
+  #dealBtn { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000; }
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 24px;
+    text-align: center;
+    z-index: 100;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 { font-size: 34px; color: #ffd700; }
+  #overlay p { font-size: 16px; color: #ccc; line-height: 1.5; }
+  #overlay button {
+    margin-top: 10px;
+    padding: 16px 52px;
+    font-size: 20px;
+    font-weight: 700;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(135deg, #ffd700, #ff8c00);
+    color: #000;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(255,200,0,0.5);
+  }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="chip gold">💰 <span id="balance">1000</span></div>
+  <div class="chip">Рекорд: <span id="best">0</span></div>
+  <div class="chip">Ставка: <span id="bet">100</span></div>
+</div>
+
+<div id="table">
+  <div class="hand">
+    <div class="hand-label">Дилер</div>
+    <div class="cards" id="dealerCards"></div>
+    <div class="score-badge" id="dealerScore">—</div>
+  </div>
+
+  <div id="message"></div>
+
+  <div class="hand">
+    <div class="hand-label">Вы</div>
+    <div class="cards" id="playerCards"></div>
+    <div class="score-badge" id="playerScore">—</div>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="dealBtn">Раздать</button>
+  <button id="hitBtn" disabled>Ещё</button>
+  <button id="standBtn" disabled>Хватит</button>
+</div>
+
+<div id="overlay">
+  <h1>🃏 Блэкджек 21</h1>
+  <p>Набери 21 или больше очков, чем у дилера,<br>но не перебери!<br><br>Ставка: 100 фишек за раунд.</p>
+  <button id="startBtn">ИГРАТЬ</button>
+</div>
+
+<script>
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  const SUITS = [
+    { s: '♠', red: false }, { s: '♥', red: true },
+    { s: '♦', red: true }, { s: '♣', red: false }
+  ];
+  const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+  const balanceEl = document.getElementById('balance');
+  const bestEl = document.getElementById('best');
+  const betEl = document.getElementById('bet');
+  const playerCardsEl = document.getElementById('playerCards');
+  const dealerCardsEl = document.getElementById('dealerCards');
+  const playerScoreEl = document.getElementById('playerScore');
+  const dealerScoreEl = document.getElementById('dealerScore');
+  const messageEl = document.getElementById('message');
+  const dealBtn = document.getElementById('dealBtn');
+  const hitBtn = document.getElementById('hitBtn');
+  const standBtn = document.getElementById('standBtn');
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+
+  let balance = parseInt(localStorage.getItem('bj_balance') || '1000');
+  let best = parseInt(localStorage.getItem('bj_best') || '0');
+  const BET = 100;
+
+  let deck = [];
+  let playerHand = [];
+  let dealerHand = [];
+  let inRound = false;
+  let dealerHidden = true;
+
+  balanceEl.textContent = balance;
+  bestEl.textContent = best;
+  betEl.textContent = BET;
+
+  function buildDeck() {
+    deck = [];
+    for (const suit of SUITS)
+      for (const rank of RANKS)
+        deck.push({ rank, suit: suit.s, red: suit.red });
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+  }
+
+  function cardValue(card) {
+    if (card.rank === 'A') return 11;
+    if (['J','Q','K'].includes(card.rank)) return 10;
+    return parseInt(card.rank);
+  }
+
+  function handValue(hand) {
+    let sum = 0, aces = 0;
+    for (const c of hand) {
+      sum += cardValue(c);
+      if (c.rank === 'A') aces++;
+    }
+    while (sum > 21 && aces > 0) { sum -= 10; aces--; }
+    return sum;
+  }
+
+  function renderCard(card, hidden) {
+    const div = document.createElement('div');
+    div.className = 'card' + (card.red ? ' red' : '') + (hidden ? ' back' : '');
+    if (!hidden) {
+      div.innerHTML = `<div class="rank">${card.rank}</div><div class="suit">${card.suit}</div>`;
+    }
+    return div;
+  }
+
+  function render() {
+    playerCardsEl.innerHTML = '';
+    playerHand.forEach(c => playerCardsEl.appendChild(renderCard(c, false)));
+
+    dealerCardsEl.innerHTML = '';
+    dealerHand.forEach((c, i) => {
+      const hide = dealerHidden && i === 1;
+      dealerCardsEl.appendChild(renderCard(c, hide));
+    });
+
+    playerScoreEl.textContent = playerHand.length ? handValue(playerHand) : '—';
+    if (!dealerHand.length) dealerScoreEl.textContent = '—';
+    else if (dealerHidden) dealerScoreEl.textContent = handValue([dealerHand[0]]) + ' + ?';
+    else dealerScoreEl.textContent = handValue(dealerHand);
+
+    balanceEl.textContent = balance;
+    bestEl.textContent = best;
+  }
+
+  function setMessage(text, cls) {
+    messageEl.textContent = text;
+    messageEl.className = cls || '';
+  }
+
+  function draw() { return deck.pop(); }
+
+  function dealRound() {
+    if (inRound) return;
+    if (balance < BET) {
+      setMessage('Недостаточно фишек!', 'lose');
+      return;
+    }
+    balance -= BET;
+    inRound = true;
+    dealerHidden = true;
+    buildDeck();
+    playerHand = [draw(), draw()];
+    dealerHand = [draw(), draw()];
+    setMessage('');
+    render();
+
+    dealBtn.disabled = true;
+    hitBtn.disabled = false;
+    standBtn.disabled = false;
+
+    if (handValue(playerHand) === 21) {
+      endRound('blackjack');
+    }
+  }
+
+  function hit() {
+    if (!inRound) return;
+    playerHand.push(draw());
+    render();
+    if (handValue(playerHand) > 21) endRound('bust');
+  }
+
+  function stand() {
+    if (!inRound) return;
+    dealerHidden = false;
+    render();
+    hitBtn.disabled = true;
+    standBtn.disabled = true;
+
+    const playDealer = () => {
+      if (handValue(dealerHand) < 17) {
+        dealerHand.push(draw());
+        render();
+        setTimeout(playDealer, 600);
+      } else {
+        endRound('compare');
+      }
+    };
+    setTimeout(playDealer, 500);
+  }
+
+  function endRound(reason) {
+    inRound = false;
+    dealerHidden = false;
+    hitBtn.disabled = true;
+    standBtn.disabled = true;
+    dealBtn.disabled = false;
+
+    const p = handValue(playerHand);
+    const d = handValue(dealerHand);
+    let msg = '', cls = '';
+
+    if (reason === 'blackjack') {
+      const win = Math.floor(BET * 2.5);
+      balance += win;
+      msg = `🎉 Блэкджек! +${win - BET}`; cls = 'win';
+    } else if (reason === 'bust' || p > 21) {
+      msg = `💥 Перебор! −${BET}`; cls = 'lose';
+    } else if (d > 21) {
+      balance += BET * 2;
+      msg = `🎉 Дилер перебрал! +${BET}`; cls = 'win';
+    } else if (p > d) {
+      balance += BET * 2;
+      msg = `🎉 Вы выиграли! +${BET}`; cls = 'win';
+    } else if (p < d) {
+      msg = `😞 Вы проиграли −${BET}`; cls = 'lose';
+    } else {
+      balance += BET;
+      msg = `🤝 Ничья. Ставка возвращена`; cls = 'push';
+    }
+
+    if (balance > best) {
+      best = balance;
+      localStorage.setItem('bj_best', best);
+    }
+    localStorage.setItem('bj_balance', balance);
+
+    if (balance <= 0) {
+      msg += ' · Банк пуст, нажмите «Раздать» для бонуса';
+      balance = 500;
+      localStorage.setItem('bj_balance', balance);
+    }
+
+    setMessage(msg, cls);
+    render();
+    if (tg) tg.HapticFeedback?.notificationOccurred(cls === 'win' ? 'success' : 'warning');
+  }
+
+  dealBtn.addEventListener('click', dealRound);
+  hitBtn.addEventListener('click', hit);
+  standBtn.addEventListener('click', stand);
+
+  startBtn.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
